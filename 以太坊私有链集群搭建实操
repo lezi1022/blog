@@ -1,0 +1,247 @@
+### go环境准备
+去这里下载最新的二进制包https://golang.org/dl/
+解压二进制包
+```
+tar -C /usr/local -xzf go$VERSION.$OS-$ARCH.tar.gz
+```
+编辑/etc/profile增加go路径
+```
+export PATH=$PATH:/usr/local/go/bin
+```
+编辑$HOME/.profile，配置go环境变量
+```
+export GOROOT=$HOME/go1.X
+export PATH=$PATH:$GOROOT/bin
+```
+
+### 以太坊源码安装
+- 安装Go和c相关的编译器
+```
+sudo apt-get install -y build-essential golang
+```
+- 下载源码及编译
+```
+git clone https://github.com/ethereum/go-ethereum
+cd go-ethereum
+make all
+```
+编译完，会在build/bin目录下，生成了许多二进制工具
+```
+root@ubuntu-14:/home/gf/daidl/go-ethereum/build/bin# ls
+abigen  bootnode  ethkey  evm  examples  faucet  geth  p2psim  puppeth  rlpdump  swarm  wnode
+```
+目前，我们只需要用到geth和bootnode  
+1. geth是以太坊客户端，有多方面的用途，通过它可以访问连接到正在运行的以太坊节点，并执行各种操作，如创建账号、查询区块链、挖矿、转账交易等  
+2. bootnode是以太坊客户端的一个阉割版，只运行服务发现协议Kademlia协议，用于在以太坊p2p网络中注册和发现节点   
+
+
+把这两个工具拷贝到$GOPATH/bin目录下  
+### 创世块初始化
+
+要运行以太坊私有链，需要定义自己的创世区块。创世块是区块链的首节点，用json配置文件表示。genesis.json。
+```
+{
+    "config": {
+        "chainId": 1000,
+        "homesteadBlock": 0,
+        "eip155Block": 0,
+        "eip158Block": 0
+    },
+    "coinbase" : "0x0000000000000000000000000000000000000000",
+    "difficulty" : "0x40000",
+    "extraData" : "",
+    "gasLimit" : "0xffffffff",
+    "nonce" : "0x0000000000000042",
+    "mixhash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "timestamp" : "0x00",
+    "alloc": { }
+}
+```
+genesis各配置项含义
+参数名称	参数描述
+- chainId ：指定了独立的区块链网络 ID。网络 ID 在连接到其他节点的时候会用到，以太坊公网的网络 ID 是 1，为了不与公有链网络冲突，运行私有链节点的时候要指定自己的网络 ID。不同 ID 网络的节点无法相互连接。
+- timestamp: 设置创世块的时间戳
+- parentHash: 上一个区块的hash值，因为是创世块，所以这个值是0
+- mixhash、nonce、difficulty跟挖矿相关的几个参数
+
+可以先不用去深度了解上面各字段的含义，我们的目的是搭建以太坊私有链集群，能跑起来就行。
+
+geth init命令用来初始化创世块，我们执行以下命令
+```
+geth --datadir ./data/00 init genesis.json
+```
+创建之后，整体目录如下。我们发现./data/00目录下多了geth和keystore两个文件夹，geth是区块链数据，keystore存放加密过的私钥信息，用过比特币钱包的同学都知道这个keystore的重要性了。
+```
+├── data
+│   └── 00
+│       ├── geth
+│       │   ├── chaindata
+│       │   │   ├── 000001.log
+│       │   │   ├── CURRENT
+│       │   │   ├── LOCK
+│       │   │   ├── LOG
+│       │   │   └── MANIFEST-000000
+│       │   └── lightchaindata
+│       │       ├── 000001.log
+│       │       ├── CURRENT
+│       │       ├── LOCK
+│       │       ├── LOG
+│       │       └── MANIFEST-000000
+│       └── keystore
+└── genesis.json
+```
+
+
+### 启动以太坊节点
+```
+geth --datadir ./data/00 --networkid 1000 console
+```
+networkid，指定以太网id，确保不是1-4，其中1是以太坊主链网络id
+执行完后，我们边运行了一个以太坊接口，并通过console方式连接上它。
+
+```
+root@ubuntu-14:/home/gf/daidl/my-eth-chain# geth --datadir ./data/00 --networkid 1000 --nodiscover console
+INFO [03-09|14:57:49] Maximum peer count                       ETH=25 LES=0 total=25
+INFO [03-09|14:57:49] Starting peer-to-peer node               instance=Geth/v1.8.2-unstable-0b814d32/linux-amd64/go1.10
+INFO [03-09|14:57:49] Allocated cache and file handles         database=/home/gf/daidl/my-eth-chain/data/00/geth/chaindata cache=768 handles=1024
+WARN [03-09|14:57:49] Upgrading database to use lookup entries
+INFO [03-09|14:57:49] Initialised chain configuration          config="{ChainID: 15 Homestead: 0 DAO: <nil> DAOSupport: false EIP150: <nil> EIP155: 0 EIP158: 0 Byzantium: <nil> Constantinople: <nil> Engine: unknown}"
+INFO [03-09|14:57:49] Disk storage enabled for ethash caches   dir=/home/gf/daidl/my-eth-chain/data/00/geth/ethash count=3
+INFO [03-09|14:57:49] Disk storage enabled for ethash DAGs     dir=/root/.ethash                                   count=2
+INFO [03-09|14:57:49] Initialising Ethereum protocol           versions="[63 62]" network=1000
+INFO [03-09|14:57:49] Database deduplication successful        deduped=0
+INFO [03-09|14:57:49] Loaded most recent local header          number=0 hash=a0e580…a5e82e td=262144
+INFO [03-09|14:57:49] Loaded most recent local full block      number=0 hash=a0e580…a5e82e td=262144
+INFO [03-09|14:57:49] Loaded most recent local fast block      number=0 hash=a0e580…a5e82e td=262144
+INFO [03-09|14:57:49] Regenerated local transaction journal    transactions=0 accounts=0
+INFO [03-09|14:57:49] Starting P2P networking
+INFO [03-09|14:57:49] RLPx listener up                         self="enode://acf96383eb15efe975c6b3ec95e5ff4aeaef1126ade3f05ec5974da33c12710d0d5e59246c0e5d29492327560f99f9dfac55217a5dad6cdf8ec1727ef7486f91@[::]:30303?discport=0"
+INFO [03-09|14:57:49] IPC endpoint opened                      url=/home/gf/daidl/my-eth-chain/data/00/geth.ipc
+Welcome to the Geth JavaScript console!
+
+instance: Geth/v1.8.2-unstable-0b814d32/linux-amd64/go1.10
+ modules: admin:1.0 debug:1.0 eth:1.0 miner:1.0 net:1.0 personal:1.0 rpc:1.0 txpool:1.0 web3:1.0
+```
+这样，我们就启动了一个以太坊节点，并已console连接上了它，其中最后一行module表示我们可以操作的模块  
+创建一个新账户
+```
+> personal.listAccounts
+[]
+> personal.newAccount("123456")
+"0xd7b07c14ffa811e0032fd3458956cc770aac71e4"
+>
+```
+挖矿
+```
+> miner.start()
+INFO [03-09|15:09:17] Updated mining threads                   threads=0
+INFO [03-09|15:09:17] Transaction pool price threshold updated price=18000000000
+INFO [03-09|15:09:17] Etherbase automatically configured       address=0xd7B07c14fFA811e0032fD3458956cc770AAc71e4
+INFO [03-09|15:09:17] Starting mining operation
+INFO [03-09|15:09:17] Commit new mining work                   number=1 txs=0 uncles=0 elapsed=134.561µs
+```
+
+### 集群搭建
+
+- bootnode  
+
+搭建以太坊集群需要bootnode，bootnode相当于一个第三方的中介，node在启动时会将自己的信息注册到bootnode的路由中，并且会从bootnode得到其它节点的路由信息，一旦以太坊节点有了对等信息后，就可以不再需要连接bootnode了
+
+
+启动bootnode服务发现节点
+```
+bootnode -genkey bootnode.key
+bootnode -nodekey=bootnode.key -addr=10.2.130.99:30301
+```
+genkey生成bootnode节点唯一标示  
+addr参数指定bootnode节点监听ip和端口
+成功启动后，屏幕会输出bootnode节点enode信息，这个节点信息后续要用到
+```
+INFO [03-09|15:28:28] UDP listener up                          self=enode://70ba2c3639bedb25ec7812a1efb0d153d7c01982ac9a2a42c2757cb6d1877198cb32d27e326a1bb80a31c0ae10cc0a8ecb8fb1c51bf5b4917c276552d9616dcf@10.2.130.99:30301
+```
+
+在这里我们可以看到以太坊预网络预定的节点地址，包括主网、Ropsten测试网、Rinkeby测试网、RLPv5测试网
+https://github.com/ethereum/go-ethereum/blob/master/params/bootnodes.go
+
+测试下你运行以太坊节点跟bootnode之间的连通性
+
+
+- 运行两个以太坊节点
+
+首先，测试下以太坊节点跟bootnode之间的网络连通性，确保udp端口是通的
+```
+root@ubuntu-14:/home/gf# netcat -u -z -v 10.2.130.99 30301
+Connection to 10.2.130.99 30301 port [udp/*] succeeded!
+```
+其次，确保节点之间都有进行ntp时钟同步，时间不同步是节点之间不能自动发现
+```
+ntpdate 10.2.86.104 && hwclock --systohc
+```
+
+最后，以太坊节点之间能够互相链接需要满足
+1. 相同的协议版本
+2. 相同的networkid
+
+运行第一个节点
+按上面的方法首先创建创世块，然后执行下面命令
+```
+geth --datadir ./data/00 --networkid 1000 --port 60000 --rpc --rpcport 8100 --rpcaddr 10.2.130.99 --bootnodes enode://70ba2c3639bedb25ec7812a1efb0d153d7c01982ac9a2a42c2757cb6d1877198cb32d27e326a1bb80a31c0ae10cc0a8ecb8fb1c51bf5b4917c276552d9616dcf@10.2.130.99:30301 --rpcapi admin,eth,net --verbosity 4 
+```
+networkid:指定我们私有链网络id为1000
+port:以太坊节点的监听端口
+rpc:开放rpc接口
+rpcport: rpc接口端口
+rpcaddr:rpc接口地址
+rpcapi:rpc接口访问模块权限
+bootnode:之前启动的bootnode节点标示
+verbosity:日志级别
+
+这次我们没有带console参数，但是开放rpc端口，便于我们通过geth attach方式访问
+```
+geth attach http://10.2.130.99:8100
+```
+或者通过本地ipc方式
+```
+geth attach data/00/geth.ipc
+```
+这时查找peers，发现是空的，因为我们只跑了一个节点
+```
+> admin.peers
+[]
+```
+
+同样的方式，我们在另外一个主机上运行另外一个节点
+
+```
+geth --datadir ./data/01 init genesis.json
+geth --datadir ./data/01 --networkid 1000 --port 60001 --rpc --rpcport 8101 --rpcaddr 10.2.130.99 --bootnodes enode://70ba2c3639bedb25ec7812a1efb0d153d7c01982ac9a2a42c2757cb6d1877198cb32d27e326a1bb80a31c0ae10cc0a8ecb8fb1c51bf5b4917c276552d9616dcf@10.2.130.99:30301 --rpcapi admin,eth,net --verbosity 4 
+```
+
+这时再attach查peers，就能发现两个节点已经互相连接了
+```
+> admin.peers
+[{
+    caps: ["eth/63"],
+    id: "d8f4b4e2783bc2a2911849420238b4234182eaeb638be84da3a781e6215055c88134703a7e5324a2e0c1bbb29d02d2ef2bd07c3d348e723e98e2e502e9c8e15e",
+    name: "Geth/v1.8.2-unstable-0b814d32/linux-amd64/go1.10",
+    network: {
+      inbound: true,
+      localAddress: "10.2.130.99:60000",
+      remoteAddress: "10.2.130.99:38365",
+      static: false,
+      trusted: false
+    },
+    protocols: {
+      eth: {
+        difficulty: 262144,
+        head: "0xa0e580c6769ac3dd80894b2a256164a76b796839d2eb7f799ef6b9850ea5e82e",
+        version: 63
+      }
+    }
+}]
+>
+```
+
+### 结语
+至此，运行2个节点的以太坊私有链集群就搭建完成，欢迎小伙伴们新搭节点加入，加入后你可以通过geth接入以太坊节点学习分析以太坊网络，或者在我们私有链上开发一些有意思的Dapp
